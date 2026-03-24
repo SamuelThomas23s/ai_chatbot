@@ -4,7 +4,12 @@ from config import API_KEY
 client = OpenAI(api_key=API_KEY)
 
 def chat():
-    print("AI Chatbot (напиши 'exit' чтобы выйти)\n")
+    print("AI Chatbot с памятью (напиши 'exit' чтобы выйти)\n")
+
+    # 🧠 История сообщений
+    messages = [
+        {"role": "system", "content": "Ты полезный ассистент."}
+    ]
 
     while True:
         user_input = input("Ты: ")
@@ -13,16 +18,21 @@ def chat():
             print("Пока!")
             break
 
+        # Добавляем сообщение пользователя в историю
+        messages.append({"role": "user", "content": user_input})
+
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Ты полезный ассистент."},
-                {"role": "user", "content": user_input}
-            ]
+            messages=messages
         )
 
         reply = response.choices[0].message.content
+
+        # Добавляем ответ ИИ в историю
+        messages.append({"role": "assistant", "content": reply})
+
         print("AI:", reply)
+
 
 if __name__ == "__main__":
     chat()
