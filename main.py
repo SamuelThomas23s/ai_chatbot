@@ -2,10 +2,13 @@ from openai import OpenAI
 from config import API_KEY
 import json
 import os
+import time
 
 client = OpenAI(api_key=API_KEY)
 
 HISTORY_FILE = "chat_history.json"
+LOG_FILE = "chat_log.txt"
+MAX_HISTORY = 20  # Максимальное количество последних сообщений для памяти
 
 # 🎭 роли
 ROLES = {
@@ -25,9 +28,13 @@ def save_history(messages):
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
 
+def log_message(user_input, reply):
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"Ты: {user_input}\nAI: {reply}\n\n")
+
 def chat():
     print("AI Chatbot PRO 😎")
-    print("Команды: /clear /role /save /exit\n")
+    print("Команды: /exit /clear /role /save /help\n")
 
     messages = load_history()
 
@@ -37,7 +44,7 @@ def chat():
         # 🚪 выход
         if user_input.lower() == "/exit":
             save_history(messages)
-            print("Сохранено. Пока!")
+            print("История сохранена. Пока!")
             break
 
         # 🧹 очистка памяти
@@ -66,19 +73,36 @@ def chat():
             print("История сохранена!")
             continue
 
+        # ℹ️ помощь
+        if user_input.lower() == "/help":
+            print("""
+Доступные команды:
+/exit  - выйти из чата
+/clear - очистить историю
+/role  - сменить роль ассистента
+/save  - сохранить историю
+/help  - показать эту справку
+""")
+            continue
+
         # обычный чат
         messages.append({"role": "user", "content": user_input})
+        messages = messages[-MAX_HISTORY:]  # оставляем только последние N сообщений
 
+        start_time = time.time()
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages
         )
+        end_time = time.time()
 
         reply = response.choices[0].message.content
         messages.append({"role": "assistant", "content": reply})
 
-        print("AI:", reply)
+        print(f"AI ({end_time - start_time:.2f} сек):", reply)
 
+        save_history(messages)
+        log_message(user_input, reply)
 
 if __name__ == "__main__":
     chat()
