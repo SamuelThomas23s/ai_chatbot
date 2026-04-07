@@ -10,12 +10,15 @@ client = OpenAI(api_key=API_KEY)
 
 HISTORY_FILE = "chat_history.json"
 LOG_FILE = "chat_log.txt"
+SETTINGS_FILE = "settings.json"
+
 MAX_HISTORY = 20
+FILE_CONTEXT = ""
 
 ROLES = {
     "default": "Ты полезный ассистент.",
     "programmer": "Ты опытный программист.",
-    "teacher": "Ты объясняешь максимально просто."
+    "teacher": "Ты объясняешь просто."
 }
 
 class Colors:
@@ -38,7 +41,16 @@ def log_message(user_input, reply):
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"Ты: {user_input}\nAI: {reply}\n\n")
 
-# 📂 Чтение файла
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    return {"role": "default", "short_mode": False}
+
+def save_settings(settings):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
+
 def read_file(filepath):
     if not os.path.exists(filepath):
         return None
@@ -58,61 +70,94 @@ def read_file(filepath):
     return None
 
 def chat():
-    print(f"{Colors.CMD}AI Chatbot PRO+ 😎")
-    print("Команды: /file /exit /clear /role /help\n" + Colors.RESET)
+    global FILE_CONTEXT
+
+    settings = load_settings()
+    SHORT_MODE = settings["short_mode"]
 
     messages = load_history()
-    SHORT_MODE = False
+
+    stats = {"messages": 0, "tokens": 0}
+
+    print("AI Chatbot PRO 😎")
+    print("Команды: /help\n")
 
     while True:
-        user_input = input(f"{Colors.USER}Ты: {Colors.RESET}")
+        user_input = input("Ты: ")
 
-        # выход
         if user_input == "/exit":
             save_history(messages)
             break
 
-        # 📂 анализ файла
-        if user_input.startswith("/file"):
-            path = user_input.split(" ", 1)[1] if " " in user_input else ""
+        if user_input == "/help":
+            print("""
+/file путь - загрузить файл
+/ask вопрос - вопрос по файлу
+/search слово - поиск
+/clear - очистка
+/stats - статистика
+/short /long - режим ответов
+""")
+            continue
 
+        if user_input == "/clear":
+            messages = [{"role": "system", "content": ROLES["default"]}]
+            continue
+
+        if user_input == "/stats":
+            print("Сообщений:", stats["messages"])
+            continue
+
+        if user_input == "/short":
+            SHORT_MODE = True
+            settings["short_mode"] = True
+            save_settings(settings)
+            continue
+
+        if user_input == "/long":
+            SHORT_MODE = False
+            settings["short_mode"] = False
+            save_settings(settings)
+            continue
+
+        if user_input.startswith("/file"):
+            path = user_input.split(" ", 1)[1]
             content = read_file(path)
 
-            if not content:
-                print(f"{Colors.CMD}Не удалось прочитать файл{Colors.RESET}")
-                continue
+            if content:
+                FILE_CONTEXT = content[:5000]
+                print("Файл загружен")
+            else:
+                print("Ошибка файла")
+            continue
 
-            print(f"{Colors.CMD}Файл загружен, анализируем...{Colors.RESET}")
-
+        if user_input.startswith("/ask"):
+            question = user_input.split(" ", 1)[1]
             messages.append({
                 "role": "user",
-                "content": f"Проанализируй этот текст:\n{content[:3000]}"
+                "content": f"{FILE_CONTEXT}\n\n{question}"
             })
-
         else:
-            # эмоции
             blob = TextBlob(user_input)
-            polarity = blob.sentiment.polarity
-            mood = "😊" if polarity > 0 else "😢" if polarity < 0 else "😐"
-            print(f"{Colors.CMD}Эмоция: {mood}{Colors.RESET}")
+            print("Эмоция:", blob.sentiment.polarity)
 
             messages.append({"role": "user", "content": user_input})
 
         messages = messages[-MAX_HISTORY:]
 
         start = time.time()
-
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages
         )
-
         end = time.time()
 
         reply = response.choices[0].message.content
         messages.append({"role": "assistant", "content": reply})
 
-        print(f"{Colors.AI}AI ({end-start:.2f}s): {reply}{Colors.RESET}")
+        print("AI:", reply)
+
+        stats["messages"] += 1
 
         save_history(messages)
         log_message(user_input, reply)
