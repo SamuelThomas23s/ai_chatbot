@@ -17,6 +17,7 @@ SETTINGS_FILE = "settings.json"
 # ⚙️ настройки
 MAX_HISTORY = 20
 FILE_CONTEXT = ""
+EXPERT_MODE = False
 
 # 🎭 роли
 ROLES = {
@@ -117,7 +118,7 @@ def summarize_history(messages):
 
 # 🚀 чат
 def chat():
-    global FILE_CONTEXT
+    global FILE_CONTEXT, EXPERT_MODE
 
     settings = load_settings()
     SHORT_MODE = settings["short_mode"]
@@ -126,7 +127,7 @@ def chat():
     stats = {"messages": 0, "tokens": 0}
 
     print(f"{Colors.CMD}AI Chatbot PRO 🚀")
-    print("Команды: /help{Colors.RESET}")
+    print("Команды: /help /expert /normal\n")
 
     while True:
         user_input = input(f"{Colors.USER}Ты: {Colors.RESET}")
@@ -144,10 +145,23 @@ def chat():
 /ask вопрос     - вопрос по файлу
 /search слово   - поиск в истории
 /short /long    - режим ответов
+/expert         - режим эксперта
+/normal         - обычный режим
 /stats          - статистика
 /reset_all      - полный сброс
 /exit           - выход
 """)
+            continue
+
+        # 🧠 режим эксперта
+        if user_input == "/expert":
+            EXPERT_MODE = True
+            print("Режим эксперта включён 🧠")
+            continue
+
+        if user_input == "/normal":
+            EXPERT_MODE = False
+            print("Обычный режим включён")
             continue
 
         # 🔄 сброс
@@ -208,6 +222,27 @@ def chat():
         # 🧠 ограничение памяти
         if len(messages) > 40:
             messages = summarize_history(messages)
+
+        # 🎯 system message
+        system_message = "Ты полезный ассистент."
+
+        if SHORT_MODE:
+            system_message += " Отвечай максимально кратко."
+
+        if EXPERT_MODE:
+            system_message = """
+Ты эксперт. Отвечай профессионально:
+
+1. Если вопрос неясный — задай уточняющий вопрос
+2. Давай структурированный ответ:
+
+📌 Проблема
+💡 Решение
+⚠️ Риски
+✅ Итог
+"""
+
+        messages[0]["content"] = system_message
 
         start = time.time()
 
