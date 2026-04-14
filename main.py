@@ -5,6 +5,7 @@ import os
 import time
 from textblob import TextBlob
 import PyPDF2
+import requests
 
 # 🔧 ИИ клиент
 client = OpenAI(api_key=API_KEY)
@@ -87,6 +88,21 @@ def read_file(path):
     return None
 
 
+# 🌐 поиск в интернете
+def web_search(query):
+    try:
+        url = f"https://duckduckgo.com/?q={query}&format=json"
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            return response.text[:2000]
+        else:
+            return "Ошибка поиска"
+
+    except:
+        return "Ошибка подключения к интернету"
+
+
 # 🧠 сжатие памяти
 def summarize_history(messages):
     if len(messages) < 10:
@@ -126,8 +142,8 @@ def chat():
     messages = load_history()
     stats = {"messages": 0, "tokens": 0}
 
-    print(f"{Colors.CMD}AI Chatbot PRO 🚀")
-    print("Команды: /help /expert /normal\n")
+    print(f"{Colors.CMD}AI Chatbot PRO MAX 🚀")
+    print("Команды: /help /expert /web\n")
 
     while True:
         user_input = input(f"{Colors.USER}Ты: {Colors.RESET}")
@@ -141,31 +157,43 @@ def chat():
         # ℹ️ help
         if user_input == "/help":
             print("""
-/file путь      - загрузить файл
-/ask вопрос     - вопрос по файлу
-/search слово   - поиск в истории
-/short /long    - режим ответов
-/expert         - режим эксперта
-/normal         - обычный режим
-/stats          - статистика
-/reset_all      - полный сброс
-/exit           - выход
+/web запрос       - поиск в интернете
+/file путь        - загрузить файл
+/ask вопрос       - вопрос по файлу
+/short /long      - режим ответов
+/expert           - режим эксперта
+/normal           - обычный режим
+/stats            - статистика
+/reset_all        - полный сброс
+/exit             - выход
 """)
             continue
 
+        # 🌐 WEB
+        if user_input.startswith("/web"):
+            query = user_input.split(" ", 1)[1] if " " in user_input else ""
+            print("Ищу в интернете...")
+
+            result = web_search(query)
+
+            messages.append({
+                "role": "user",
+                "content": f"Вот информация из интернета:\n{result}\n\nОтветь на вопрос: {query}"
+            })
+
         # 🧠 режим эксперта
-        if user_input == "/expert":
+        elif user_input == "/expert":
             EXPERT_MODE = True
             print("Режим эксперта включён 🧠")
             continue
 
-        if user_input == "/normal":
+        elif user_input == "/normal":
             EXPERT_MODE = False
             print("Обычный режим включён")
             continue
 
         # 🔄 сброс
-        if user_input == "/reset_all":
+        elif user_input == "/reset_all":
             messages = [{"role": "system", "content": ROLES["default"]}]
             FILE_CONTEXT = ""
             stats = {"messages": 0, "tokens": 0}
@@ -173,25 +201,25 @@ def chat():
             continue
 
         # 📊 stats
-        if user_input == "/stats":
+        elif user_input == "/stats":
             print(stats)
             continue
 
-        # ✂️ режим ответов
-        if user_input == "/short":
+        # ✂️ режим
+        elif user_input == "/short":
             SHORT_MODE = True
             settings["short_mode"] = True
             save_settings(settings)
             continue
 
-        if user_input == "/long":
+        elif user_input == "/long":
             SHORT_MODE = False
             settings["short_mode"] = False
             save_settings(settings)
             continue
 
         # 📂 файл
-        if user_input.startswith("/file"):
+        elif user_input.startswith("/file"):
             path = user_input.split(" ", 1)[1]
             content = read_file(path)
 
@@ -203,12 +231,12 @@ def chat():
             continue
 
         # ❓ вопрос по файлу
-        if user_input.startswith("/ask"):
+        elif user_input.startswith("/ask"):
             question = user_input.split(" ", 1)[1]
 
             messages.append({
                 "role": "user",
-                "content": f"Контекст файла:\n{FILE_CONTEXT}\n\nВопрос: {question}"
+                "content": f"Контекст:\n{FILE_CONTEXT}\n\nВопрос: {question}"
             })
 
         else:
@@ -219,7 +247,7 @@ def chat():
 
             messages.append({"role": "user", "content": user_input})
 
-        # 🧠 ограничение памяти
+        # 🧠 память
         if len(messages) > 40:
             messages = summarize_history(messages)
 
@@ -227,14 +255,11 @@ def chat():
         system_message = "Ты полезный ассистент."
 
         if SHORT_MODE:
-            system_message += " Отвечай максимально кратко."
+            system_message += " Отвечай кратко."
 
         if EXPERT_MODE:
             system_message = """
-Ты эксперт. Отвечай профессионально:
-
-1. Если вопрос неясный — задай уточняющий вопрос
-2. Давай структурированный ответ:
+Ты эксперт:
 
 📌 Проблема
 💡 Решение
